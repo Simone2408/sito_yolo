@@ -1,0 +1,175 @@
+{% extends 'detection/base.html' %}
+{% block title %}Carica Video - YOLO Detection{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-cloud-upload"></i> Carica Nuovo Video</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">
+                            {{ form.title.label }}
+                        </label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                        <div class="text-danger small mt-1">{{ form.title.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.original_video.id_for_label }}" class="form-label">
+                            {{ form.original_video.label }}
+                        </label>
+                        {{ form.original_video }}
+                        {% if form.original_video.help_text %}
+                        <div class="form-text">{{ form.original_video.help_text }}</div>
+                        {% endif %}
+                        {% if form.original_video.errors %}
+                        <div class="text-danger small mt-1">{{ form.original_video.errors }}</div>
+                        {% endif %}
+
+                        <div class="mt-2" id="fileInfo" style="display:none;">
+                            <div class="alert alert-info d-flex align-items-center">
+                                <i class="bi bi-file-earmark-play fs-3 me-3"></i>
+                                <div>
+                                    <strong id="fileName"></strong><br>
+                                    <small id="fileSize"></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Nota:</strong> il video sarà processato in background dal modello YOLO.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="bi bi-upload"></i> Carica e Processa
+                        </button>
+                        <a href="{% url 'video_list' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Annulla
+                        </a>
+                    </div>
+                </form>
+
+                <div id="uploadProgress" style="display:none" class="mt-4">
+                    <h5>Caricamento in corso…</h5>
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar"
+                            style="width:0%"></div>
+                    </div>
+                    <p class="text-center mt-2" id="progressText">0%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="my-5 border-gray-700">
+
+<h4 class="text-white mb-4">Oppure prova con un video di esempio</h4>
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <div class="card p-3 bg-gray-800 border-0 shadow">
+            <h6 class="text-white">Video Esempio 1</h6>
+            <video controls class="w-100 rounded-3 mb-3" style="max-height: 200px;">
+                <source src="/media/sample_videos/rail_1.mp4" type="video/mp4">
+                Il tuo browser non supporta il tag video.
+            </video>
+            <form method="post" action="{% url 'use_sample_video' 'sample1' %}">
+                {% csrf_token %}
+                <button class="btn btn-primary w-100">Usa questo video</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card p-3 bg-gray-800 border-0 shadow">
+            <h6 class="text-white">Video Esempio 2</h6>
+            <video controls class="w-100 rounded-3 mb-3" style="max-height: 200px;">
+                <source src="/media/sample_videos/rail_2.mp4" type="video/mp4">
+                Il tuo browser non supporta il tag video.
+            </video>
+            <form method="post" action="{% url 'use_sample_video' 'sample2' %}">
+                {% csrf_token %}
+                <button class="btn btn-primary w-100">Usa questo video</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const fileInput = document.getElementById('{{ form.original_video.id_for_label }}');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const uploadForm = document.getElementById('uploadForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+
+    // Info file selezionato
+    fileInput.addEventListener('change', (e) => {
+        const f = e.target.files[0];
+        if (!f) {
+            fileInfo.style.display = 'none';
+            return;
+        }
+        fileName.textContent = f.name;
+        fileSize.textContent = `Dimensione: ${(f.size / (1024 * 1024)).toFixed(2)} MB`;
+        fileInfo.style.display = 'block';
+    });
+
+    // Upload con barra di progresso (AJAX)
+    uploadForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(uploadForm);
+        submitBtn.disabled = true;
+        uploadProgress.style.display = 'block';
+
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const p = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = p + '%';
+                progressText.textContent = p + '%';
+            }
+        });
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200 || xhr.status === 302) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.detail_url) {
+                        window.location.href = data.detail_url;
+                        return;
+                    }
+                } catch (_) { }
+                window.location.href = "{% url 'video_list' %}";
+            } else {
+                alert('Errore durante il caricamento. Riprova.');
+                submitBtn.disabled = false;
+                uploadProgress.style.display = 'none';
+            }
+        });
+        xhr.addEventListener('error', () => {
+            alert('Errore di connessione. Riprova.');
+            submitBtn.disabled = false;
+            uploadProgress.style.display = 'none';
+        });
+        xhr.open('POST', uploadForm.action || window.location.href);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.send(formData);
+    });
+</script>
+{% endblock %}

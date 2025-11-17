@@ -1,0 +1,23 @@
+# Django
+Django==5.0.1
+
+# Celery e Redis
+celery==5.3.6
+redis==5.0.1
+
+# YOLO (Ultralytics)
+ultralytics==8.1.18
+
+# OpenCV
+opencv-python==4.9.0.80
+
+# Torch CPU only 
+torch==2.2.0 --index-url https://download.pytorch.org/whl/cpu
+torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cpu
+
+# Imaging e scientific
+Pillow==10.2.0
+numpy==1.26.3
+
+# Utility
+python-dotenv==1.0.1
